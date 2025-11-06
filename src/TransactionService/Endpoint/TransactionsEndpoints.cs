@@ -79,9 +79,9 @@ private static async Task<IResult> TransferSimpleAsync(
         Amount = dto.Amount,
         Type = "TRANSFER",
         OldBalanceOrg = oldOrg,
-        NewBalanceOrig = newOrg,       // snapshot dự kiến
+        NewBalanceOrig = newOrg,      
         OldBalanceDest = oldDest,
-        NewBalanceDest = newDest,      // snapshot dự kiến
+        NewBalanceDest = newDest,
         Status = "REQUESTED",
         CreatedAtUtc = DateTime.UtcNow
     };

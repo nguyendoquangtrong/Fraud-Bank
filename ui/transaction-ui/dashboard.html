@@ -26,6 +26,27 @@
     .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
     input[type="search"]{padding:6px 8px;border:1px solid #d1d5db;border-radius:8px;min-width:260px}
     .small{font-size:12px}
+    .hidden{display:none!important}
+    .actions-cell{display:flex;gap:6px;justify-content:center}
+    .btn{padding:4px 10px;border-radius:6px;border:1px solid transparent;font-size:12px;cursor:pointer;background:#1d4ed8;color:#fff}
+    .btn.secondary{background:#f8fafc;color:#1f2937;border-color:#cbd5f5}
+    .btn:disabled{opacity:0.6;cursor:default}
+    .review-panel{margin-top:20px;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;max-width:460px}
+    .review-panel h2{margin:0 0 12px;font-size:18px}
+    .review-panel label{display:block;font-weight:600;margin-top:8px;margin-bottom:4px}
+    .review-panel .field{margin-bottom:12px}
+    .review-panel input[type="text"],
+    .review-panel textarea,
+    .review-panel select{width:100%;padding:8px;border-radius:8px;border:1px solid #d1d5db;font-size:14px}
+    .review-panel textarea{min-height:80px;resize:vertical}
+    .review-panel .radio-group{display:flex;gap:16px}
+    .review-panel .radio-group label{display:flex;align-items:center;font-weight:400;gap:6px;margin:0}
+    .review-panel footer{display:flex;gap:8px;align-items:center;margin-top:12px}
+    .review-panel .status{font-size:12px}
+    .review-panel .status.success{color:#047857}
+    .review-panel .status.error{color:#b91c1c}
+    .review-panel .summary{font-size:13px;color:#374151;margin-bottom:12px;line-height:1.4}
+    .review-panel .summary code{font-size:13px}
   </style>
 </head>
 <body>
@@ -50,22 +71,60 @@
         <th>Trạng thái</th>
         <th class="right">Rủi ro</th>
         <th>Quyết định</th>
+        <th>Thao tác</th>
       </tr>
     </thead>
     <tbody id="rows"></tbody>
   </table>
 
+  <div id="reviewPanel" class="review-panel hidden">
+    <h2>Duyệt giao dịch thủ công</h2>
+    <div class="summary">
+      <div><strong>TransactionId:</strong> <code id="reviewTxId"></code></div>
+      <div><strong>Trạng thái hiện tại:</strong> <span id="reviewStatus"></span></div>
+      <div><strong>Số tiền:</strong> <span id="reviewAmount"></span></div>
+      <div><strong>Từ → Đến:</strong> <span id="reviewAccounts"></span></div>
+    </div>
+    <form id="reviewForm">
+      <div class="field">
+        <label>Hành động</label>
+        <div class="radio-group">
+          <label><input type="radio" name="action" value="APPROVE" checked /> Duyệt (APPROVE)</label>
+          <label><input type="radio" name="action" value="REJECT" /> Từ chối (REJECT)</label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="reviewedBy">Người duyệt</label>
+        <input id="reviewedBy" name="reviewedBy" type="text" autocomplete="off" placeholder="Nhập tên người duyệt" required />
+      </div>
+      <div class="field">
+        <label for="reviewNote">Ghi chú</label>
+        <textarea id="reviewNote" name="note" placeholder="Lý do / ghi chú (tuỳ chọn)"></textarea>
+      </div>
+      <footer>
+        <button type="submit" class="btn" id="reviewSubmit">Gửi kết quả</button>
+        <button type="button" class="btn secondary" id="reviewCancel">Đóng</button>
+        <span id="reviewFeedback" class="status faded"></span>
+      </footer>
+    </form>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
   <script>
   // ==== CONFIG ====
-const API_BASE = 'http://localhost:5272'; 
+const API_BASE = 'http://localhost:5272';
+const TRANSACTION_API_BASE = 'http://localhost:5032';
+const REVIEWABLE_STATUSES = new Set(['DECIDED_BLOCK', 'DECIDED_REVIEW', 'REQUESTED']);
   // ==== STATE ====
   const state = {
     list: [],
     byId: new Map(),
     limit: 1000,
     connectionStatus: 'Đang kết nối...',
-    lastRenderedCount: 0
+    lastRenderedCount: 0,
+    selectedReviewId: null,
+    submittingReview: false,
+    reviewCloseTimer: null
   };
 
   let pollTimer = null;
@@ -77,6 +136,15 @@ const API_BASE = 'http://localhost:5272';
 
   const fmtMoney = v => v == null ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
   const fmtTime  = iso => iso ? new Date(iso).toLocaleString() : '';
+  const reviewPanel = document.getElementById('reviewPanel');
+  const reviewTxIdEl = document.getElementById('reviewTxId');
+  const reviewStatusEl = document.getElementById('reviewStatus');
+  const reviewAmountEl = document.getElementById('reviewAmount');
+  const reviewAccountsEl = document.getElementById('reviewAccounts');
+  const reviewForm = document.getElementById('reviewForm');
+  const reviewSubmit = document.getElementById('reviewSubmit');
+  const reviewCancel = document.getElementById('reviewCancel');
+  const reviewFeedback = document.getElementById('reviewFeedback');
 
   function updateStat(displayedCount) {
     const current = displayedCount ?? state.lastRenderedCount ?? state.list.length;
@@ -107,28 +175,134 @@ const API_BASE = 'http://localhost:5272';
       : state.list;
 
     rowsEl.innerHTML = items.map(x => {
-      const st = x.status || '';
-      const cls = 'chip status-' + st.replace(/[^A-Z_]/g, '');
-      const decision = x.decision || toDecisionFromStatus(st) || '';
+      const rawStatus = x.status || '';
+      const normalizedStatus = rawStatus.toUpperCase();
+      const cls = 'chip status-' + normalizedStatus.replace(/[^A-Z_]/g, '');
+      const decision = x.decision || toDecisionFromStatus(normalizedStatus) || '';
+      const actionCell = REVIEWABLE_STATUSES.has(normalizedStatus)
+        ? `<div class="actions-cell"><button type="button" class="btn" data-review="${x.transactionId}">Đánh giá</button></div>`
+        : '';
       return `<tr>
         <td>${fmtTime(x.createdAtUtc)}</td>
         <td class="mono">${x.transactionId || ''}</td>
         <td>${x.fromAccount || ''}</td>
         <td>${x.toAccount || ''}</td>
         <td class="right mono">${fmtMoney(x.amount)}</td>
-        <td><span class="${cls}">${st}</span></td>
+        <td><span class="${cls}">${rawStatus}</span></td>
         <td class="right mono">${x.risk == null ? '' : Number(x.risk).toFixed(3)}</td>
         <td>${decision}</td>
+        <td>${actionCell}</td>
       </tr>`;
     }).join('');
 
     state.lastRenderedCount = items.length;
     updateStat(items.length);
+    refreshReviewPanel();
   }
 
   function setConnectionStatus(text) {
     state.connectionStatus = text;
     updateStat();
+  }
+
+  function refreshReviewPanel() {
+    if (!state.selectedReviewId) return;
+    const tx = state.byId.get(state.selectedReviewId);
+    if (!tx) {
+      closeReviewPanel();
+      return;
+    }
+
+    const normalizedStatus = (tx.status || '').toUpperCase();
+    if (!REVIEWABLE_STATUSES.has(normalizedStatus) && normalizedStatus.startsWith('REVIEWED_')) {
+      updateReviewPanel(tx);
+      scheduleReviewPanelClose();
+      return;
+    }
+
+    if (!REVIEWABLE_STATUSES.has(normalizedStatus)) {
+      closeReviewPanel();
+      return;
+    }
+
+    updateReviewPanel(tx);
+  }
+
+  function updateReviewPanel(tx) {
+    reviewTxIdEl.textContent = tx.transactionId ?? '';
+    reviewStatusEl.textContent = tx.status ?? '';
+    reviewAmountEl.textContent = fmtMoney(tx.amount);
+    reviewAccountsEl.textContent = `${tx.fromAccount ?? ''} → ${tx.toAccount ?? ''}`;
+  }
+
+  function clearReviewPanelCloseTimer() {
+    if (state.reviewCloseTimer) {
+      clearTimeout(state.reviewCloseTimer);
+      state.reviewCloseTimer = null;
+    }
+  }
+
+  function scheduleReviewPanelClose() {
+    clearReviewPanelCloseTimer();
+    state.reviewCloseTimer = setTimeout(() => {
+      state.reviewCloseTimer = null;
+      closeReviewPanel();
+    }, 1500);
+  }
+
+  function openReviewPanel(tx) {
+    state.selectedReviewId = tx.transactionId;
+    clearReviewPanelCloseTimer();
+    reviewForm.reset();
+    const reviewerInput = reviewForm.elements.reviewedBy;
+    const noteInput = reviewForm.elements.note;
+    const actionInput = reviewForm.elements.action;
+    if (reviewerInput) reviewerInput.value = '';
+    if (noteInput) noteInput.value = '';
+    if (actionInput) actionInput.value = 'APPROVE';
+    reviewFeedback.textContent = '';
+    reviewFeedback.classList.remove('success', 'error');
+    reviewFeedback.classList.add('faded');
+    updateReviewPanel(tx);
+    reviewPanel.classList.remove('hidden');
+    if (reviewerInput && typeof reviewerInput.focus === 'function') {
+      reviewerInput.focus();
+    }
+  }
+
+  function closeReviewPanel() {
+    clearReviewPanelCloseTimer();
+    state.selectedReviewId = null;
+    reviewForm.reset();
+    reviewPanel.classList.add('hidden');
+    reviewFeedback.textContent = '';
+    reviewFeedback.classList.remove('success', 'error');
+    reviewFeedback.classList.add('faded');
+    setReviewSubmitting(false);
+  }
+
+  function setReviewSubmitting(isSubmitting) {
+    state.submittingReview = isSubmitting;
+    reviewSubmit.disabled = isSubmitting;
+    reviewCancel.disabled = isSubmitting;
+    const elements = Array.from(reviewForm.elements);
+    elements.forEach(el => {
+      if (el.name === 'action' || el.name === 'reviewedBy' || el.name === 'note') {
+        el.disabled = isSubmitting;
+      }
+    });
+  }
+
+  function setReviewFeedback(kind, message) {
+    reviewFeedback.textContent = message || '';
+    reviewFeedback.classList.toggle('success', kind === 'success');
+    reviewFeedback.classList.toggle('error', kind === 'error');
+    reviewFeedback.classList.toggle('faded', !message || kind === 'info');
+  }
+
+  function buildTransactionApi(path) {
+    const base = TRANSACTION_API_BASE.endsWith('/') ? TRANSACTION_API_BASE : `${TRANSACTION_API_BASE}/`;
+    return new URL(path.replace(/^\/+/, ''), base).toString();
   }
 
   function upsert(doc) {
@@ -150,11 +324,85 @@ const API_BASE = 'http://localhost:5272';
     render();
   }
 
+  async function submitReview(event) {
+    event.preventDefault();
+    if (!state.selectedReviewId) {
+      setReviewFeedback('error', 'Vui lòng chọn giao dịch cần duyệt.');
+      return;
+    }
+
+    const action = reviewForm.elements.action.value;
+    const reviewedBy = (reviewForm.elements.reviewedBy.value || '').trim();
+    const note = (reviewForm.elements.note.value || '').trim();
+
+    if (!reviewedBy) {
+      setReviewFeedback('error', 'Tên người duyệt không được để trống.');
+      reviewForm.elements.reviewedBy.focus();
+      return;
+    }
+
+    let endpoint;
+    try {
+      endpoint = buildTransactionApi(`/api/transactions/${encodeURIComponent(state.selectedReviewId)}/review`);
+    } catch (err) {
+      setReviewFeedback('error', err instanceof Error ? err.message : String(err));
+      return;
+    }
+
+    const payload = {
+      action,
+      reviewedBy,
+      note: note || null
+    };
+
+    try {
+      setReviewSubmitting(true);
+      setReviewFeedback('info', 'Đang gửi kết quả duyệt...');
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const text = await res.text();
+      let json;
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        json = { raw: text };
+      }
+
+      if (!res.ok) {
+        const errorMessage = json?.error || json?.message || `HTTP ${res.status}`;
+        throw new Error(errorMessage);
+      }
+
+      const status = typeof json?.status === 'string'
+        ? json.status
+        : (action === 'APPROVE' ? 'REVIEWED_APPROVE' : 'REVIEWED_REJECT');
+      const decision = action === 'APPROVE' ? 'APPROVE' : 'REJECT';
+
+      upsert({
+        transactionId: state.selectedReviewId,
+        status,
+        decision
+      });
+
+      setReviewFeedback('success', 'Đã cập nhật kết quả duyệt.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setReviewFeedback('error', message);
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
+
   async function loadInitial() {
     // Lấy lịch sử mới nhất từ ProjectionService
-    const res = await fetch(`${API_BASE}/api/transactions/latest?size=${state.limit}`);
+    const latestUrl = `${API_BASE}/api/transactions/latest?size=${state.limit}`;
+    const res = await fetch(latestUrl);
 
-    if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status} @ ${latestUrl}`);
     const data = await res.json();
 
     const hits = (data.hits && data.hits.hits) ? data.hits.hits : [];
@@ -260,6 +508,23 @@ const API_BASE = 'http://localhost:5272';
   }
 
   document.getElementById('filter').addEventListener('input', render);
+  rowsEl.addEventListener('click', ev => {
+    const target = ev.target.closest('button[data-review]');
+    if (!target) return;
+    const id = target.dataset.review;
+    if (!id) return;
+    const tx = state.byId.get(id);
+    if (!tx) {
+      setReviewFeedback('error', 'Không tìm thấy giao dịch trong bộ nhớ tạm.');
+      return;
+    }
+    openReviewPanel(tx);
+  });
+  reviewCancel.addEventListener('click', () => {
+    if (state.submittingReview) return;
+    closeReviewPanel();
+  });
+  reviewForm.addEventListener('submit', submitReview);
 
   updateStat(0);
 
