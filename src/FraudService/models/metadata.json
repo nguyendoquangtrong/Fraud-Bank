@@ -1,0 +1,50 @@
+{
+  "input_name": "float_input",
+  "output_names": [
+    "output_label",
+    "output_probability"
+  ],
+  "feature_mapping": {
+    "f0": "amount",
+    "f1": "oldbalanceOrg",
+    "f2": "newbalanceOrig",
+    "f3": "oldbalanceDest",
+    "f4": "newbalanceDest",
+    "f5": "isAccountEmptied",
+    "f6": "errorBalanceOrig",
+    "f7": "errorBalanceDest",
+    "f8": "type_CASH_OUT",
+    "f9": "type_DEBIT",
+    "f10": "type_PAYMENT",
+    "f11": "type_TRANSFER"
+  },
+  "feature_names_original": [
+    "amount",
+    "oldbalanceOrg",
+    "newbalanceOrig",
+    "oldbalanceDest",
+    "newbalanceDest",
+    "isAccountEmptied",
+    "errorBalanceOrig",
+    "errorBalanceDest",
+    "type_CASH_OUT",
+    "type_DEBIT",
+    "type_PAYMENT",
+    "type_TRANSFER"
+  ],
+  "feature_names_onnx": [
+    "f0",
+    "f1",
+    "f2",
+    "f3",
+    "f4",
+    "f5",
+    "f6",
+    "f7",
+    "f8",
+    "f9",
+    "f10",
+    "f11"
+  ],
+  "description": "ONNX format - feature names are f0, f1, f2... (see feature_mapping for original names)"
+}

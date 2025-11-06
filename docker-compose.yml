@@ -1,0 +1,120 @@
+version: "3.9"
+
+services:
+  redpanda:
+    image: redpandadata/redpanda:v24.2.10
+    command: >
+      redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --check=false
+      --kafka-addr internal://0.0.0.0:9092
+      --advertise-kafka-addr internal://redpanda:9092
+    ports:
+      - "9092:9092"   
+      - "9644:9644"
+    environment:
+      REDPANDA_AUTO_CREATE_TOPICS: "true"
+
+  console:
+    image: redpandadata/console:v2.6.0
+    depends_on: [ redpanda ]
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: "redpanda:9092"
+      KAFKA_TLS_ENABLED: "false"
+      KAFKA_SASL_ENABLED: "false"
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: bank
+      POSTGRES_PASSWORD: bank
+      POSTGRES_DB: bankdb
+    ports:
+      - "5432:5432"
+
+  opensearch:
+    image: opensearchproject/opensearch:2.14.0
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"       
+      DISABLE_INSTALL_DEMO_CONFIG: "true"   
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports: ["9200:9200","9600:9600"]
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+
+  dashboards:
+    image: opensearchproject/opensearch-dashboards:2.14.0
+    depends_on: [ opensearch ]
+    environment:
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"  
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+    ports: ["5601:5601"]
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    depends_on: [ postgres ]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
+      PGADMIN_CONFIG_CONSOLE_LOG_LEVEL: 10
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  transaction-service:
+    build:
+      context: .
+      dockerfile: src/TransactionService/Dockerfile
+    depends_on:
+      - postgres
+      - redpanda
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5032
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=bankdb;Username=bank;Password=bank
+      Kafka__BootstrapServers: redpanda:9092
+      Kafka__ClientId: transaction-service
+      Kafka__GroupId: transaction-service
+    ports:
+      - "5032:5032"
+
+  fraud-service:
+    build:
+      context: .
+      dockerfile: src/FraudService/Dockerfile
+    depends_on:
+      - redpanda
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5042
+      Kafka__BootstrapServers: redpanda:9092
+      Kafka__ClientId: fraud-service
+      Kafka__GroupId: fraud-service
+      Onnx__ModelPath: "/app/models/fraud_detection_model.onnx"
+      Onnx__MetadataPath: "/app/models/metadata.json"
+    ports:
+      - "5042:5042"
+
+  projection-service:
+    build:
+      context: .
+      dockerfile: src/ProjectionService/Dockerfile
+    depends_on:
+      - redpanda
+      - opensearch
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5272
+      Kafka__BootstrapServers: redpanda:9092
+      Kafka__ClientId: projection-service
+      Kafka__GroupId: projection-service
+      OpenSearch__BaseUrl: http://opensearch:9200
+      OpenSearch__Index: tx-logs
+    ports:
+      - "5272:5272"
+
+volumes:
+  pgadmin_data:

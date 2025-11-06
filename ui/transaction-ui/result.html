@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FraudBank - Transaction Result</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <main class="page">
+        <section class="card result-card">
+            <div class="result-header">
+                <div class="result-icon" id="statusIcon">?</div>
+                <div>
+                    <h1 id="statusTitle">Tra cứu giao dịch</h1>
+                    <p id="statusSubtitle"></p>
+                </div>
+            </div>
+
+            <dl class="result-details">
+                <div>
+                    <dt>Mã giao dịch</dt>
+                    <dd id="detailTxId">Không có</dd>
+                </div>
+                <div>
+                    <dt>Tài khoản gửi</dt>
+                    <dd id="detailFrom">-</dd>
+                </div>
+                <div>
+                    <dt>Tài khoản nhận</dt>
+                    <dd id="detailTo">-</dd>
+                </div>
+                <div>
+                    <dt>Số tiền</dt>
+                    <dd id="detailAmount">-</dd>
+                </div>
+            </dl>
+            <div id="statusMessage" class="status-message"></div>
+
+            <div class="result-actions">
+                <a class="button-link" href="index.html">Quay lại trang giao dịch</a>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="result.js"></script>
+</body>
+</html>

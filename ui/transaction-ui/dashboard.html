@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>FraudBank Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:16px;}
+    h1{font-size:20px;margin:0 0 8px}
+    .meta{color:#666;margin-bottom:12px}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #e5e7eb;padding:8px;font-size:14px}
+    th{background:#f8fafc;position:sticky;top:0}
+    tr:nth-child(even){background:#fafafa}
+    .chip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+    .status-REQUESTED{background:#eef2ff;color:#3730a3}
+    .status-SCORED{background:#ecfeff;color:#155e75}
+    .status-LEDGER_APPLIED{background:#ecfdf5;color:#065f46}
+    .status-DECIDED_BLOCK{background:#fee2e2;color:#991b1b}
+    .status-DECIDED_ALLOW{background:#fef9c3;color:#92400e}
+    .status-REVIEWED_REJECT{background:#fee2e2;color:#991b1b}
+    .status-REVIEWED_APPROVE{background:#ecfdf5;color:#065f46}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+    .right{text-align:right}
+    .faded{color:#6b7280}
+    .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+    input[type="search"]{padding:6px 8px;border:1px solid #d1d5db;border-radius:8px;min-width:260px}
+    .small{font-size:12px}
+  </style>
+</head>
+<body>
+  <h1>FraudBank — Lịch sử giao dịch (Realtime)</h1>
+  <div class="toolbar">
+    <input id="filter" type="search" placeholder="Lọc theo account (from/to), TransactionId, trạng thái (ALLOW/BLOCK/REQUESTED)..." />
+    <span class="small faded" id="stat"></span>
+  </div>
+  <div class="meta">
+    Nguồn dữ liệu: <code>http://localhost:5272</code>. Tải lần đầu từ <code>/api/transactions/latest</code> và cập nhật realtime qua SignalR <code>/hubs/transactions</code>. 
+    Hiển thị tối đa <span id="limit">1000</span> bản ghi mới nhất.
+  </div>
+
+  <table id="grid">
+    <thead>
+      <tr>
+        <th style="width:210px">Thời gian (local)</th>
+        <th>TransactionId</th>
+        <th>Từ</th>
+        <th>Đến</th>
+        <th class="right">Số tiền</th>
+        <th>Trạng thái</th>
+        <th class="right">Rủi ro</th>
+        <th>Quyết định</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
+  <script>
+  // ==== CONFIG ====
+const API_BASE = 'http://localhost:5272'; 
+  // ==== STATE ====
+  const state = {
+    list: [],
+    byId: new Map(),
+    limit: 1000,
+    connectionStatus: 'Đang kết nối...',
+    lastRenderedCount: 0
+  };
+
+  let pollTimer = null;
+
+  // ==== DOM ====
+  const rowsEl = document.getElementById('rows');
+  const statEl = document.getElementById('stat');
+  document.getElementById('limit').textContent = state.limit;
+
+  const fmtMoney = v => v == null ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const fmtTime  = iso => iso ? new Date(iso).toLocaleString() : '';
+
+  function updateStat(displayedCount) {
+    const current = displayedCount ?? state.lastRenderedCount ?? state.list.length;
+    statEl.textContent = `Tổng: ${state.list.length} | Đang hiển thị: ${current} | Realtime: ${state.connectionStatus}`;
+  }
+
+  function toDecisionFromStatus(st) {
+    if (!st) return '';
+    if (st.startsWith('DECIDED_')) return st.replace('DECIDED_', '');
+    if (st.startsWith('REVIEWED_')) return st.replace('REVIEWED_', '');
+    if (st === 'LEDGER_APPLIED') return 'ALLOW';
+    return '';
+  }
+
+  function render() {
+    const q = document.getElementById('filter').value.trim().toLowerCase();
+
+    const items = q
+      ? state.list.filter(x => {
+          const st = (x.status || '').toLowerCase();
+          const dec = (x.decision || toDecisionFromStatus(x.status) || '').toLowerCase();
+          return (x.transactionId || '').toLowerCase().includes(q)
+            || (x.fromAccount || '').toLowerCase().includes(q)
+            || (x.toAccount || '').toLowerCase().includes(q)
+            || st.includes(q)
+            || dec.includes(q);
+        })
+      : state.list;
+
+    rowsEl.innerHTML = items.map(x => {
+      const st = x.status || '';
+      const cls = 'chip status-' + st.replace(/[^A-Z_]/g, '');
+      const decision = x.decision || toDecisionFromStatus(st) || '';
+      return `<tr>
+        <td>${fmtTime(x.createdAtUtc)}</td>
+        <td class="mono">${x.transactionId || ''}</td>
+        <td>${x.fromAccount || ''}</td>
+        <td>${x.toAccount || ''}</td>
+        <td class="right mono">${fmtMoney(x.amount)}</td>
+        <td><span class="${cls}">${st}</span></td>
+        <td class="right mono">${x.risk == null ? '' : Number(x.risk).toFixed(3)}</td>
+        <td>${decision}</td>
+      </tr>`;
+    }).join('');
+
+    state.lastRenderedCount = items.length;
+    updateStat(items.length);
+  }
+
+  function setConnectionStatus(text) {
+    state.connectionStatus = text;
+    updateStat();
+  }
+
+  function upsert(doc) {
+    const id = doc.transactionId;
+    if (!id) return;
+
+    const prev = state.byId.get(id) || {};
+    const merged = { ...prev, ...doc };
+
+    // Giữ createdAtUtc sớm nhất nếu bị ghi đè
+    if (!merged.createdAtUtc && prev.createdAtUtc) merged.createdAtUtc = prev.createdAtUtc;
+
+    state.byId.set(id, merged);
+
+    state.list = Array.from(state.byId.values())
+      .sort((a, b) => new Date(b.createdAtUtc || 0) - new Date(a.createdAtUtc || 0))
+      .slice(0, state.limit);
+
+    render();
+  }
+
+  async function loadInitial() {
+    // Lấy lịch sử mới nhất từ ProjectionService
+    const res = await fetch(`${API_BASE}/api/transactions/latest?size=${state.limit}`);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
+    const data = await res.json();
+
+    const hits = (data.hits && data.hits.hits) ? data.hits.hits : [];
+    hits.forEach(h => {
+      const s = h._source || {};
+      upsert({
+        transactionId: s.transactionId || h._id,
+        status: s.status,
+        amount: s.amount,
+        fromAccount: s.fromAccount,
+        toAccount: s.toAccount,
+        risk: s.risk,
+        decision: s.decision,
+        createdAtUtc: s.createdAtUtc
+      });
+    });
+  }
+
+  function ensurePolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(() => {
+      refresh().catch(() => {});
+    }, 10000);
+  }
+
+  function stopPolling() {
+    if (!pollTimer) return;
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  async function refresh() {
+    await loadInitial();
+  }
+
+  async function initSignalR() {
+    if (!window.signalR || !signalR.HubConnectionBuilder) {
+      setConnectionStatus('SignalR client không sẵn sàng — dùng polling');
+      ensurePolling();
+      await refresh();
+      return;
+    }
+
+    setConnectionStatus('Đang kết nối SignalR...');
+     const connection = new signalR.HubConnectionBuilder()
+        .withUrl(`${API_BASE}/hubs/transactions`, {
+        skipNegotiation: true,
+        transport: signalR.HttpTransportType.WebSockets,
+        withCredentials: false
+        })
+    .withAutomaticReconnect()
+    .build();
+
+    connection.on('txEvent', e => {
+      stopPolling();
+      try {
+        upsert({
+          transactionId: e.transactionId ?? e.TransactionId,
+          status: e.status ?? e.Status,
+          decision: e.decision ?? e.Decision,
+          risk: e.risk ?? e.Risk,
+          amount: e.amount ?? e.Amount,
+          fromAccount: e.fromAccount ?? e.FromAccount,
+          toAccount: e.toAccount ?? e.ToAccount,
+          createdAtUtc: e.createdAtUtc ?? e.CreatedAtUtc
+        });
+      } catch (err) {
+        console.error('Không xử lý được thông điệp SignalR', err);
+      }
+    });
+
+    connection.onreconnecting(() => {
+      setConnectionStatus('Đang khôi phục kết nối...');
+      ensurePolling();
+    });
+
+    connection.onreconnected(() => {
+      setConnectionStatus('Đã kết nối SignalR');
+      stopPolling();
+      refresh().catch(() => {});
+    });
+
+    connection.onclose(() => {
+      setConnectionStatus('Đã ngắt kết nối — sẽ thử lại trong 5s');
+      ensurePolling();
+      setTimeout(initSignalR, 5000);
+    });
+
+    async function start() {
+      try {
+        await connection.start();
+        setConnectionStatus('Đã kết nối SignalR');
+        stopPolling();
+      } catch (err) {
+        console.error('SignalR start fail', err);
+        setConnectionStatus('Lỗi kết nối — thử lại trong 5s');
+        ensurePolling();
+        setTimeout(start, 5000);
+      }
+    }
+
+    await start();
+  }
+
+  document.getElementById('filter').addEventListener('input', render);
+
+  updateStat(0);
+
+  (async () => {
+    try { await loadInitial(); } catch (e) { console.error(e); }
+    await initSignalR();
+  })();
+  </script>
+</body>
+</html>

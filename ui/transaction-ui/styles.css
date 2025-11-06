@@ -1,0 +1,324 @@
+:root {
+    color-scheme: light dark;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f172a;
+    color: #f8fafc;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem 1.5rem;
+}
+
+.page {
+    display: grid;
+    gap: 1.5rem;
+    width: min(960px, 100%);
+}
+
+.card {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 16px;
+    padding: 1.75rem;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.35);
+    backdrop-filter: blur(12px);
+}
+
+.result-card {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.card h1,
+.card h2 {
+    margin-top: 0;
+}
+
+.lead {
+    margin-bottom: 1.25rem;
+    color: #cbd5f5;
+}
+
+.note {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+
+label {
+    display: grid;
+    gap: 0.4rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+label.inline {
+    max-width: 360px;
+}
+
+input {
+    padding: 0.75rem 0.9rem;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(15, 23, 42, 0.7);
+    color: inherit;
+    font-size: 1rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus {
+    outline: none;
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+}
+
+form {
+    display: grid;
+    gap: 1rem;
+}
+
+.field-group {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+button {
+    padding: 0.75rem 1.4rem;
+    font-size: 1rem;
+    border-radius: 999px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.2s ease;
+}
+
+#submitBtn {
+    background: linear-gradient(135deg, #38bdf8, #6366f1);
+    color: #0f172a;
+}
+
+.secondary {
+    background: rgba(148, 163, 184, 0.2);
+    color: inherit;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.feedback {
+    padding: 0.9rem 1rem;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    background: rgba(45, 212, 191, 0.1);
+    border: 1px solid rgba(45, 212, 191, 0.3);
+}
+
+.feedback.error {
+    background: rgba(248, 113, 113, 0.12);
+    border-color: rgba(248, 113, 113, 0.45);
+}
+
+.feedback.pending {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 130, 246, 0.45);
+}
+
+.hidden {
+    display: none;
+}
+
+.response {
+    margin: 0;
+    padding: 1rem;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #94a3b8;
+    overflow-x: auto;
+}
+
+.result-header {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.result-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+.result-icon.success {
+    background: rgba(45, 212, 191, 0.2);
+    color: #34d399;
+}
+
+.result-icon.error {
+    background: rgba(248, 113, 113, 0.2);
+    color: #f87171;
+}
+
+.result-details {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+}
+
+.result-details dt {
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 0.25rem;
+}
+
+.result-details dd {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #f8fafc;
+}
+
+.link-inline {
+    color: #38bdf8;
+    text-decoration: none;
+    font-weight: 600;
+    word-break: break-all;
+}
+
+.link-inline:hover {
+    color: #7dd3fc;
+}
+
+.button-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.6rem;
+    border-radius: 999px;
+    font-weight: 600;
+    text-decoration: none;
+    background: linear-gradient(135deg, #38bdf8, #6366f1);
+    color: #0f172a;
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.button-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(99, 102, 241, 0.25);
+}
+
+.result-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.status-message {
+    font-size: 0.95rem;
+    color: #cbd5f5;
+}
+
+.result-icon.spinner {
+    border: 4px solid rgba(148, 163, 184, 0.4);
+    border-top-color: #38bdf8;
+    border-right-color: rgba(148, 163, 184, 0.4);
+    border-bottom-color: rgba(148, 163, 184, 0.4);
+    border-left-color: #38bdf8;
+    animation: spin 1s linear infinite;
+    background: transparent;
+}
+
+.result-icon.spinner::after {
+    content: "";
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.account-preview {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px dashed rgba(148, 163, 184, 0.3);
+    background: rgba(15, 23, 42, 0.5);
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.account-preview .caption {
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.account-preview .value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f1f5f9;
+}
+
+.account-preview .meta {
+    font-size: 0.9rem;
+    color: #cbd5f5;
+}
+
+.account-preview[data-state="idle"] {
+    border-style: dashed;
+}
+
+.account-preview[data-state="loading"] {
+    border-color: rgba(56, 189, 248, 0.45);
+    background: rgba(56, 189, 248, 0.08);
+}
+
+.account-preview[data-state="found"] {
+    border-color: rgba(45, 212, 191, 0.55);
+    background: rgba(45, 212, 191, 0.12);
+}
+
+.account-preview[data-state="not-found"],
+.account-preview[data-state="error"] {
+    border-color: rgba(248, 113, 113, 0.55);
+    background: rgba(248, 113, 113, 0.1);
+    color: #fecaca;
+}
+
+ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+    line-height: 1.6;
+    color: #cbd5f5;
+}

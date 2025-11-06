@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FraudBank Transfer UI</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <main class="page">
+        <section class="card setup">
+            <h1>FraudBank Transfer</h1>           
+        </section>
+
+        <section class="card">
+            <h2>Transfer request</h2>
+            <form id="transferForm" autocomplete="off">
+                <div class="field-group">
+                    <label>
+                    From account
+                    <input type="text" name="fromAccount" maxlength="32" placeholder="e.g. ACC-100001" required />
+                    </label>
+                    <div class="account-preview" id="fromAccountPreview" data-state="idle">
+                        <span class="caption">Thông tin tài khoản gửi</span>
+                        <span class="value" data-role="holder">Nhập số tài khoản để kiểm tra</span>
+                        <span class="meta" data-role="meta"></span>
+                    </div>
+                </div>
+
+                <div class="field-group">
+                    <label>
+                    To account
+                    <input type="text" name="toAccount" maxlength="32" placeholder="e.g. ACC-100045" required />
+                    </label>
+                    <div class="account-preview" id="toAccountPreview" data-state="idle">
+                        <span class="caption">Thông tin tài khoản nhận</span>
+                        <span class="value" data-role="holder">Nhập số tài khoản để kiểm tra</span>
+                        <span class="meta" data-role="meta"></span>
+                    </div>
+                </div>
+
+                <label>
+                    Amount
+                    <input type="number" name="amount" min="0.01" step="0.01" placeholder="1000.00" required />
+                </label>
+
+                <div class="actions">
+                    <button type="submit" id="submitBtn">Send transfer</button>
+                    <button type="reset" class="secondary" id="resetBtn">Reset</button>
+                </div>
+            </form>
+
+            <div id="feedback" class="feedback hidden" role="status" aria-live="polite"></div>
+        </section>    
+    </main>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
