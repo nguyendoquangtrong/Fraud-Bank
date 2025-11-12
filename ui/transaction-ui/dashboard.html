@@ -4,534 +4,211 @@
   <meta charset="utf-8" />
   <title>FraudBank Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:16px;}
-    h1{font-size:20px;margin:0 0 8px}
-    .meta{color:#666;margin-bottom:12px}
-    table{border-collapse:collapse;width:100%}
-    th,td{border:1px solid #e5e7eb;padding:8px;font-size:14px}
-    th{background:#f8fafc;position:sticky;top:0}
-    tr:nth-child(even){background:#fafafa}
-    .chip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
-    .status-REQUESTED{background:#eef2ff;color:#3730a3}
-    .status-SCORED{background:#ecfeff;color:#155e75}
-    .status-LEDGER_APPLIED{background:#ecfdf5;color:#065f46}
-    .status-DECIDED_BLOCK{background:#fee2e2;color:#991b1b}
-    .status-DECIDED_ALLOW{background:#fef9c3;color:#92400e}
-    .status-REVIEWED_REJECT{background:#fee2e2;color:#991b1b}
-    .status-REVIEWED_APPROVE{background:#ecfdf5;color:#065f46}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
-    .right{text-align:right}
-    .faded{color:#6b7280}
-    .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
-    input[type="search"]{padding:6px 8px;border:1px solid #d1d5db;border-radius:8px;min-width:260px}
-    .small{font-size:12px}
-    .hidden{display:none!important}
-    .actions-cell{display:flex;gap:6px;justify-content:center}
-    .btn{padding:4px 10px;border-radius:6px;border:1px solid transparent;font-size:12px;cursor:pointer;background:#1d4ed8;color:#fff}
-    .btn.secondary{background:#f8fafc;color:#1f2937;border-color:#cbd5f5}
-    .btn:disabled{opacity:0.6;cursor:default}
-    .review-panel{margin-top:20px;padding:16px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;max-width:460px}
-    .review-panel h2{margin:0 0 12px;font-size:18px}
-    .review-panel label{display:block;font-weight:600;margin-top:8px;margin-bottom:4px}
-    .review-panel .field{margin-bottom:12px}
-    .review-panel input[type="text"],
-    .review-panel textarea,
-    .review-panel select{width:100%;padding:8px;border-radius:8px;border:1px solid #d1d5db;font-size:14px}
-    .review-panel textarea{min-height:80px;resize:vertical}
-    .review-panel .radio-group{display:flex;gap:16px}
-    .review-panel .radio-group label{display:flex;align-items:center;font-weight:400;gap:6px;margin:0}
-    .review-panel footer{display:flex;gap:8px;align-items:center;margin-top:12px}
-    .review-panel .status{font-size:12px}
-    .review-panel .status.success{color:#047857}
-    .review-panel .status.error{color:#b91c1c}
-    .review-panel .summary{font-size:13px;color:#374151;margin-bottom:12px;line-height:1.4}
-    .review-panel .summary code{font-size:13px}
-  </style>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <h1>FraudBank — Lịch sử giao dịch (Realtime)</h1>
-  <div class="toolbar">
-    <input id="filter" type="search" placeholder="Lọc theo account (from/to), TransactionId, trạng thái (ALLOW/BLOCK/REQUESTED)..." />
-    <span class="small faded" id="stat"></span>
-  </div>
-  <div class="meta">
-    Nguồn dữ liệu: <code>http://localhost:5272</code>. Tải lần đầu từ <code>/api/transactions/latest</code> và cập nhật realtime qua SignalR <code>/hubs/transactions</code>. 
-    Hiển thị tối đa <span id="limit">1000</span> bản ghi mới nhất.
-  </div>
-
-  <table id="grid">
-    <thead>
-      <tr>
-        <th style="width:210px">Thời gian (local)</th>
-        <th>TransactionId</th>
-        <th>Từ</th>
-        <th>Đến</th>
-        <th class="right">Số tiền</th>
-        <th>Trạng thái</th>
-        <th class="right">Rủi ro</th>
-        <th>Quyết định</th>
-        <th>Thao tác</th>
-      </tr>
-    </thead>
-    <tbody id="rows"></tbody>
-  </table>
-
-  <div id="reviewPanel" class="review-panel hidden">
-    <h2>Duyệt giao dịch thủ công</h2>
-    <div class="summary">
-      <div><strong>TransactionId:</strong> <code id="reviewTxId"></code></div>
-      <div><strong>Trạng thái hiện tại:</strong> <span id="reviewStatus"></span></div>
-      <div><strong>Số tiền:</strong> <span id="reviewAmount"></span></div>
-      <div><strong>Từ → Đến:</strong> <span id="reviewAccounts"></span></div>
-    </div>
-    <form id="reviewForm">
-      <div class="field">
-        <label>Hành động</label>
-        <div class="radio-group">
-          <label><input type="radio" name="action" value="APPROVE" checked /> Duyệt (APPROVE)</label>
-          <label><input type="radio" name="action" value="REJECT" /> Từ chối (REJECT)</label>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="header-title">
+          <h1>🏦 FraudBank Dashboard</h1>
+          <p class="subtitle">Hệ thống giám sát giao dịch thời gian thực</p>
+        </div>
+        <div class="header-info">
+          <div class="info-card">
+            <span class="info-label">API Endpoint</span>
+            <code id="apiBaseLbl" class="info-value"></code>
+          </div>
+          <div class="info-card">
+            <span class="info-label">Giới hạn</span>
+            <span id="limit" class="info-value">1000</span>
+          </div>
         </div>
       </div>
-      <div class="field">
-        <label for="reviewedBy">Người duyệt</label>
-        <input id="reviewedBy" name="reviewedBy" type="text" autocomplete="off" placeholder="Nhập tên người duyệt" required />
+    </header>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <div class="status-left">
+        <span class="badge" id="modeBadge">Live</span>
+        <span class="stat" id="stat">Đang tải...</span>
       </div>
-      <div class="field">
-        <label for="reviewNote">Ghi chú</label>
-        <textarea id="reviewNote" name="note" placeholder="Lý do / ghi chú (tuỳ chọn)"></textarea>
+      <button class="btn btn-icon" id="btnGoLive" title="Trở về chế độ realtime">
+        <span class="icon">↺</span> Realtime
+      </button>
+    </div>
+
+    <!-- Quick Filter -->
+    <div class="filter-section">
+      <div class="quick-filter card">
+        <div class="filter-header">
+          <h3>🔍 Lọc nhanh</h3>
+        </div>
+        <input 
+          id="filter" 
+          type="search" 
+          class="search-input"
+          placeholder="Tìm kiếm theo TransactionId, Account, Trạng thái..." 
+        />
       </div>
-      <footer>
-        <button type="submit" class="btn" id="reviewSubmit">Gửi kết quả</button>
-        <button type="button" class="btn secondary" id="reviewCancel">Đóng</button>
-        <span id="reviewFeedback" class="status faded"></span>
-      </footer>
-    </form>
+
+      <!-- Advanced Filters -->
+      <form id="searchForm" class="advanced-filter card">
+        <div class="filter-header">
+          <h3>⚙️ Bộ lọc nâng cao</h3>
+        </div>
+        
+        <div class="filter-grid">
+          <div class="form-group">
+            <label>Trạng thái</label>
+            <select id="qStatus" name="status">
+              <option value="">-- Tất cả --</option>
+              <option>REQUESTED</option>
+              <option>SCORED</option>
+              <option>DECIDED_REVIEW</option>
+              <option>DECIDED_ALLOW</option>
+              <option>DECIDED_BLOCK</option>
+              <option>LEDGER_APPLIED</option>
+              <option>REVIEWED_APPROVE</option>
+              <option>REVIEWED_REJECT</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Tài khoản gửi</label>
+            <input id="qFrom" name="fromAccount" type="text" placeholder="123-xxx" />
+          </div>
+
+          <div class="form-group">
+            <label>Tài khoản nhận</label>
+            <input id="qTo" name="toAccount" type="text" placeholder="456-yyy" />
+          </div>
+
+          <div class="form-group">
+            <label>Từ thời điểm</label>
+            <input id="qStart" name="startDate" type="datetime-local" />
+          </div>
+
+          <div class="form-group">
+            <label>Đến thời điểm</label>
+            <input id="qEnd" name="endDate" type="datetime-local" />
+          </div>
+
+          <div class="form-group">
+            <label>Số lượng</label>
+            <input id="qSize" name="size" type="number" min="1" max="5000" value="100" />
+          </div>
+        </div>
+
+        <div class="filter-actions">
+          <button class="btn btn-primary" id="btnSearch" type="submit">
+            🔎 Tìm kiếm
+          </button>
+          <button class="btn btn-secondary" id="btnClear" type="button">
+            ✖ Xoá bộ lọc
+          </button>
+          <span id="searchInfo" class="search-feedback"></span>
+        </div>
+      </form>
+    </div>
+
+    <!-- Data Table -->
+    <div class="table-container card">
+      <div class="table-wrapper">
+        <table id="grid">
+          <thead>
+            <tr>
+              <th>Thời gian</th>
+              <th>Transaction ID</th>
+              <th>Từ</th>
+              <th>Đến</th>
+              <th class="text-right">Số tiền</th>
+              <th>Trạng thái</th>
+              <th class="text-right">Rủi ro</th>
+              <th>Quyết định</th>
+              <th class="text-center">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Review Panel -->
+    <div id="reviewPanel" class="review-panel card hidden">
+      <div class="panel-header">
+        <h2>📋 Duyệt giao dịch thủ công</h2>
+        <button type="button" class="btn-close" id="reviewCancel" aria-label="Đóng">×</button>
+      </div>
+
+      <div class="panel-summary">
+        <div class="summary-item">
+          <span class="summary-label">Transaction ID:</span>
+          <code id="reviewTxId"></code>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Trạng thái:</span>
+          <span id="reviewStatus" class="summary-value"></span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Số tiền:</span>
+          <span id="reviewAmount" class="summary-value"></span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Luồng tiền:</span>
+          <span id="reviewAccounts" class="summary-value"></span>
+        </div>
+      </div>
+
+      <form id="reviewForm">
+        <div class="form-group">
+          <label>Hành động</label>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="action" value="APPROVE" checked />
+              <span>✓ Duyệt (APPROVE)</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="action" value="REJECT" />
+              <span>✗ Từ chối (REJECT)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="reviewedBy">Người duyệt <span class="required">*</span></label>
+          <input 
+            id="reviewedBy" 
+            name="reviewedBy" 
+            type="text" 
+            autocomplete="off" 
+            placeholder="Nhập tên người duyệt" 
+            required 
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="reviewNote">Ghi chú</label>
+          <textarea 
+            id="reviewNote" 
+            name="note" 
+            placeholder="Lý do / ghi chú (tuỳ chọn)"
+            rows="4"
+          ></textarea>
+        </div>
+
+        <div class="panel-footer">
+          <button type="submit" class="btn btn-primary" id="reviewSubmit">
+            📤 Gửi kết quả
+          </button>
+          <span id="reviewFeedback" class="feedback-message"></span>
+        </div>
+      </form>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
-  <script>
-  // ==== CONFIG ====
-const API_BASE = 'http://localhost:5272';
-const TRANSACTION_API_BASE = 'http://localhost:5032';
-const REVIEWABLE_STATUSES = new Set(['DECIDED_BLOCK', 'DECIDED_REVIEW', 'REQUESTED']);
-  // ==== STATE ====
-  const state = {
-    list: [],
-    byId: new Map(),
-    limit: 1000,
-    connectionStatus: 'Đang kết nối...',
-    lastRenderedCount: 0,
-    selectedReviewId: null,
-    submittingReview: false,
-    reviewCloseTimer: null
-  };
-
-  let pollTimer = null;
-
-  // ==== DOM ====
-  const rowsEl = document.getElementById('rows');
-  const statEl = document.getElementById('stat');
-  document.getElementById('limit').textContent = state.limit;
-
-  const fmtMoney = v => v == null ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
-  const fmtTime  = iso => iso ? new Date(iso).toLocaleString() : '';
-  const reviewPanel = document.getElementById('reviewPanel');
-  const reviewTxIdEl = document.getElementById('reviewTxId');
-  const reviewStatusEl = document.getElementById('reviewStatus');
-  const reviewAmountEl = document.getElementById('reviewAmount');
-  const reviewAccountsEl = document.getElementById('reviewAccounts');
-  const reviewForm = document.getElementById('reviewForm');
-  const reviewSubmit = document.getElementById('reviewSubmit');
-  const reviewCancel = document.getElementById('reviewCancel');
-  const reviewFeedback = document.getElementById('reviewFeedback');
-
-  function updateStat(displayedCount) {
-    const current = displayedCount ?? state.lastRenderedCount ?? state.list.length;
-    statEl.textContent = `Tổng: ${state.list.length} | Đang hiển thị: ${current} | Realtime: ${state.connectionStatus}`;
-  }
-
-  function toDecisionFromStatus(st) {
-    if (!st) return '';
-    if (st.startsWith('DECIDED_')) return st.replace('DECIDED_', '');
-    if (st.startsWith('REVIEWED_')) return st.replace('REVIEWED_', '');
-    if (st === 'LEDGER_APPLIED') return 'ALLOW';
-    return '';
-  }
-
-  function render() {
-    const q = document.getElementById('filter').value.trim().toLowerCase();
-
-    const items = q
-      ? state.list.filter(x => {
-          const st = (x.status || '').toLowerCase();
-          const dec = (x.decision || toDecisionFromStatus(x.status) || '').toLowerCase();
-          return (x.transactionId || '').toLowerCase().includes(q)
-            || (x.fromAccount || '').toLowerCase().includes(q)
-            || (x.toAccount || '').toLowerCase().includes(q)
-            || st.includes(q)
-            || dec.includes(q);
-        })
-      : state.list;
-
-    rowsEl.innerHTML = items.map(x => {
-      const rawStatus = x.status || '';
-      const normalizedStatus = rawStatus.toUpperCase();
-      const cls = 'chip status-' + normalizedStatus.replace(/[^A-Z_]/g, '');
-      const decision = x.decision || toDecisionFromStatus(normalizedStatus) || '';
-      const actionCell = REVIEWABLE_STATUSES.has(normalizedStatus)
-        ? `<div class="actions-cell"><button type="button" class="btn" data-review="${x.transactionId}">Đánh giá</button></div>`
-        : '';
-      return `<tr>
-        <td>${fmtTime(x.createdAtUtc)}</td>
-        <td class="mono">${x.transactionId || ''}</td>
-        <td>${x.fromAccount || ''}</td>
-        <td>${x.toAccount || ''}</td>
-        <td class="right mono">${fmtMoney(x.amount)}</td>
-        <td><span class="${cls}">${rawStatus}</span></td>
-        <td class="right mono">${x.risk == null ? '' : Number(x.risk).toFixed(3)}</td>
-        <td>${decision}</td>
-        <td>${actionCell}</td>
-      </tr>`;
-    }).join('');
-
-    state.lastRenderedCount = items.length;
-    updateStat(items.length);
-    refreshReviewPanel();
-  }
-
-  function setConnectionStatus(text) {
-    state.connectionStatus = text;
-    updateStat();
-  }
-
-  function refreshReviewPanel() {
-    if (!state.selectedReviewId) return;
-    const tx = state.byId.get(state.selectedReviewId);
-    if (!tx) {
-      closeReviewPanel();
-      return;
-    }
-
-    const normalizedStatus = (tx.status || '').toUpperCase();
-    if (!REVIEWABLE_STATUSES.has(normalizedStatus) && normalizedStatus.startsWith('REVIEWED_')) {
-      updateReviewPanel(tx);
-      scheduleReviewPanelClose();
-      return;
-    }
-
-    if (!REVIEWABLE_STATUSES.has(normalizedStatus)) {
-      closeReviewPanel();
-      return;
-    }
-
-    updateReviewPanel(tx);
-  }
-
-  function updateReviewPanel(tx) {
-    reviewTxIdEl.textContent = tx.transactionId ?? '';
-    reviewStatusEl.textContent = tx.status ?? '';
-    reviewAmountEl.textContent = fmtMoney(tx.amount);
-    reviewAccountsEl.textContent = `${tx.fromAccount ?? ''} → ${tx.toAccount ?? ''}`;
-  }
-
-  function clearReviewPanelCloseTimer() {
-    if (state.reviewCloseTimer) {
-      clearTimeout(state.reviewCloseTimer);
-      state.reviewCloseTimer = null;
-    }
-  }
-
-  function scheduleReviewPanelClose() {
-    clearReviewPanelCloseTimer();
-    state.reviewCloseTimer = setTimeout(() => {
-      state.reviewCloseTimer = null;
-      closeReviewPanel();
-    }, 1500);
-  }
-
-  function openReviewPanel(tx) {
-    state.selectedReviewId = tx.transactionId;
-    clearReviewPanelCloseTimer();
-    reviewForm.reset();
-    const reviewerInput = reviewForm.elements.reviewedBy;
-    const noteInput = reviewForm.elements.note;
-    const actionInput = reviewForm.elements.action;
-    if (reviewerInput) reviewerInput.value = '';
-    if (noteInput) noteInput.value = '';
-    if (actionInput) actionInput.value = 'APPROVE';
-    reviewFeedback.textContent = '';
-    reviewFeedback.classList.remove('success', 'error');
-    reviewFeedback.classList.add('faded');
-    updateReviewPanel(tx);
-    reviewPanel.classList.remove('hidden');
-    if (reviewerInput && typeof reviewerInput.focus === 'function') {
-      reviewerInput.focus();
-    }
-  }
-
-  function closeReviewPanel() {
-    clearReviewPanelCloseTimer();
-    state.selectedReviewId = null;
-    reviewForm.reset();
-    reviewPanel.classList.add('hidden');
-    reviewFeedback.textContent = '';
-    reviewFeedback.classList.remove('success', 'error');
-    reviewFeedback.classList.add('faded');
-    setReviewSubmitting(false);
-  }
-
-  function setReviewSubmitting(isSubmitting) {
-    state.submittingReview = isSubmitting;
-    reviewSubmit.disabled = isSubmitting;
-    reviewCancel.disabled = isSubmitting;
-    const elements = Array.from(reviewForm.elements);
-    elements.forEach(el => {
-      if (el.name === 'action' || el.name === 'reviewedBy' || el.name === 'note') {
-        el.disabled = isSubmitting;
-      }
-    });
-  }
-
-  function setReviewFeedback(kind, message) {
-    reviewFeedback.textContent = message || '';
-    reviewFeedback.classList.toggle('success', kind === 'success');
-    reviewFeedback.classList.toggle('error', kind === 'error');
-    reviewFeedback.classList.toggle('faded', !message || kind === 'info');
-  }
-
-  function buildTransactionApi(path) {
-    const base = TRANSACTION_API_BASE.endsWith('/') ? TRANSACTION_API_BASE : `${TRANSACTION_API_BASE}/`;
-    return new URL(path.replace(/^\/+/, ''), base).toString();
-  }
-
-  function upsert(doc) {
-    const id = doc.transactionId;
-    if (!id) return;
-
-    const prev = state.byId.get(id) || {};
-    const merged = { ...prev, ...doc };
-
-    // Giữ createdAtUtc sớm nhất nếu bị ghi đè
-    if (!merged.createdAtUtc && prev.createdAtUtc) merged.createdAtUtc = prev.createdAtUtc;
-
-    state.byId.set(id, merged);
-
-    state.list = Array.from(state.byId.values())
-      .sort((a, b) => new Date(b.createdAtUtc || 0) - new Date(a.createdAtUtc || 0))
-      .slice(0, state.limit);
-
-    render();
-  }
-
-  async function submitReview(event) {
-    event.preventDefault();
-    if (!state.selectedReviewId) {
-      setReviewFeedback('error', 'Vui lòng chọn giao dịch cần duyệt.');
-      return;
-    }
-
-    const action = reviewForm.elements.action.value;
-    const reviewedBy = (reviewForm.elements.reviewedBy.value || '').trim();
-    const note = (reviewForm.elements.note.value || '').trim();
-
-    if (!reviewedBy) {
-      setReviewFeedback('error', 'Tên người duyệt không được để trống.');
-      reviewForm.elements.reviewedBy.focus();
-      return;
-    }
-
-    let endpoint;
-    try {
-      endpoint = buildTransactionApi(`/api/transactions/${encodeURIComponent(state.selectedReviewId)}/review`);
-    } catch (err) {
-      setReviewFeedback('error', err instanceof Error ? err.message : String(err));
-      return;
-    }
-
-    const payload = {
-      action,
-      reviewedBy,
-      note: note || null
-    };
-
-    try {
-      setReviewSubmitting(true);
-      setReviewFeedback('info', 'Đang gửi kết quả duyệt...');
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const text = await res.text();
-      let json;
-      try {
-        json = text ? JSON.parse(text) : {};
-      } catch {
-        json = { raw: text };
-      }
-
-      if (!res.ok) {
-        const errorMessage = json?.error || json?.message || `HTTP ${res.status}`;
-        throw new Error(errorMessage);
-      }
-
-      const status = typeof json?.status === 'string'
-        ? json.status
-        : (action === 'APPROVE' ? 'REVIEWED_APPROVE' : 'REVIEWED_REJECT');
-      const decision = action === 'APPROVE' ? 'APPROVE' : 'REJECT';
-
-      upsert({
-        transactionId: state.selectedReviewId,
-        status,
-        decision
-      });
-
-      setReviewFeedback('success', 'Đã cập nhật kết quả duyệt.');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setReviewFeedback('error', message);
-    } finally {
-      setReviewSubmitting(false);
-    }
-  }
-
-  async function loadInitial() {
-    // Lấy lịch sử mới nhất từ ProjectionService
-    const latestUrl = `${API_BASE}/api/transactions/latest?size=${state.limit}`;
-    const res = await fetch(latestUrl);
-
-    if (!res.ok) throw new Error(`HTTP ${res.status} @ ${latestUrl}`);
-    const data = await res.json();
-
-    const hits = (data.hits && data.hits.hits) ? data.hits.hits : [];
-    hits.forEach(h => {
-      const s = h._source || {};
-      upsert({
-        transactionId: s.transactionId || h._id,
-        status: s.status,
-        amount: s.amount,
-        fromAccount: s.fromAccount,
-        toAccount: s.toAccount,
-        risk: s.risk,
-        decision: s.decision,
-        createdAtUtc: s.createdAtUtc
-      });
-    });
-  }
-
-  function ensurePolling() {
-    if (pollTimer) return;
-    pollTimer = setInterval(() => {
-      refresh().catch(() => {});
-    }, 10000);
-  }
-
-  function stopPolling() {
-    if (!pollTimer) return;
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-
-  async function refresh() {
-    await loadInitial();
-  }
-
-  async function initSignalR() {
-    if (!window.signalR || !signalR.HubConnectionBuilder) {
-      setConnectionStatus('SignalR client không sẵn sàng — dùng polling');
-      ensurePolling();
-      await refresh();
-      return;
-    }
-
-    setConnectionStatus('Đang kết nối SignalR...');
-     const connection = new signalR.HubConnectionBuilder()
-        .withUrl(`${API_BASE}/hubs/transactions`, {
-        skipNegotiation: true,
-        transport: signalR.HttpTransportType.WebSockets,
-        withCredentials: false
-        })
-    .withAutomaticReconnect()
-    .build();
-
-    connection.on('txEvent', e => {
-      stopPolling();
-      try {
-        upsert({
-          transactionId: e.transactionId ?? e.TransactionId,
-          status: e.status ?? e.Status,
-          decision: e.decision ?? e.Decision,
-          risk: e.risk ?? e.Risk,
-          amount: e.amount ?? e.Amount,
-          fromAccount: e.fromAccount ?? e.FromAccount,
-          toAccount: e.toAccount ?? e.ToAccount,
-          createdAtUtc: e.createdAtUtc ?? e.CreatedAtUtc
-        });
-      } catch (err) {
-        console.error('Không xử lý được thông điệp SignalR', err);
-      }
-    });
-
-    connection.onreconnecting(() => {
-      setConnectionStatus('Đang khôi phục kết nối...');
-      ensurePolling();
-    });
-
-    connection.onreconnected(() => {
-      setConnectionStatus('Đã kết nối SignalR');
-      stopPolling();
-      refresh().catch(() => {});
-    });
-
-    connection.onclose(() => {
-      setConnectionStatus('Đã ngắt kết nối — sẽ thử lại trong 5s');
-      ensurePolling();
-      setTimeout(initSignalR, 5000);
-    });
-
-    async function start() {
-      try {
-        await connection.start();
-        setConnectionStatus('Đã kết nối SignalR');
-        stopPolling();
-      } catch (err) {
-        console.error('SignalR start fail', err);
-        setConnectionStatus('Lỗi kết nối — thử lại trong 5s');
-        ensurePolling();
-        setTimeout(start, 5000);
-      }
-    }
-
-    await start();
-  }
-
-  document.getElementById('filter').addEventListener('input', render);
-  rowsEl.addEventListener('click', ev => {
-    const target = ev.target.closest('button[data-review]');
-    if (!target) return;
-    const id = target.dataset.review;
-    if (!id) return;
-    const tx = state.byId.get(id);
-    if (!tx) {
-      setReviewFeedback('error', 'Không tìm thấy giao dịch trong bộ nhớ tạm.');
-      return;
-    }
-    openReviewPanel(tx);
-  });
-  reviewCancel.addEventListener('click', () => {
-    if (state.submittingReview) return;
-    closeReviewPanel();
-  });
-  reviewForm.addEventListener('submit', submitReview);
-
-  updateStat(0);
-
-  (async () => {
-    try { await loadInitial(); } catch (e) { console.error(e); }
-    await initSignalR();
-  })();
-  </script>
+  <script src="app_dashboard.js"></script>
 </body>
 </html>
