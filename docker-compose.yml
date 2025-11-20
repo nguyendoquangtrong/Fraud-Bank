@@ -1,6 +1,7 @@
 version: "3.9"
 
 services:
+
   redpanda:
     image: redpandadata/redpanda:v24.2.10
     command: >

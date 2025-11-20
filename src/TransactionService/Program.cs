@@ -18,7 +18,7 @@ builder.Services.AddSingleton(_ => new KafkaProducer(kcfg));
 
 builder.Services.AddHostedService<OutboxPublisher>();
 builder.Services.AddHostedService<ScoredConsumer>();
-
+builder.Services.AddHostedService<TransactionTimeoutJob>();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>

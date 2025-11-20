@@ -27,7 +27,9 @@ public class ScoredConsumer(IServiceProvider sp, IConfiguration cfg) : Backgroun
 
         string decision;
         string? reason = null;
-        if (scored.Risk < allowTh) decision = "ALLOW";        else if (scored.Risk >= blockTh) decision = "BLOCK";
+
+        if (scored.Risk < allowTh) decision = "ALLOW";        
+        else if (scored.Risk >= blockTh) decision = "BLOCK";
         else { decision = "REVIEW"; reason = "Between thresholds"; }
 
         var decisionAt = DateTime.UtcNow;
@@ -36,6 +38,11 @@ public class ScoredConsumer(IServiceProvider sp, IConfiguration cfg) : Backgroun
 
         var tracked = await db.Transactions.FirstOrDefaultAsync(x => x.TxId == scored.TransactionId);
         if (tracked is null) return;
+
+        if (tracked.Status == "FAILED")
+        {
+            return; 
+        }
 
         if (decision != "ALLOW")
         {

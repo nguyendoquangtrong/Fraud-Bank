@@ -1,6 +1,5 @@
 using Contracts;
 using Messaging;
-using Microsoft.Extensions.Hosting;
 using System.Text.Json;
 
 public class RequestedConsumer(IServiceProvider sp, IConfiguration cfg) : BackgroundService
@@ -12,14 +11,25 @@ public class RequestedConsumer(IServiceProvider sp, IConfiguration cfg) : Backgr
         var consumer = new KafkaConsumer(kcfg, topics);
         return Task.Run(() => consumer.ConsumeLoop(Handle, stoppingToken), stoppingToken);
     }
-
     async Task Handle(Confluent.Kafka.ConsumeResult<string,string> cr)
     {
+        var requested = Ser.U<TransactionRequested>(cr.Message.Value)!;
+        if (requested == null) return;
+
+        var timeoutMinutes = cfg.GetValue<int>("Transaction:TimeoutMinutes", 2);
+
+        var age = DateTime.UtcNow - requested.OccurredAtUtc;
+        if (age.TotalMinutes > timeoutMinutes)
+        {
+            var logger = sp.GetRequiredService<ILogger<RequestedConsumer>>();
+            logger.LogWarning("Transaction {TxId} expired (age: {Age}s). Skipped scoring.",
+                requested.TransactionId, age.TotalSeconds);
+            return; 
+        }
         using var scope = sp.CreateScope();
         var prod = scope.ServiceProvider.GetRequiredService<KafkaProducer>();
 
         var model = scope.ServiceProvider.GetRequiredService<OnnxScoring>();
-        var requested = Ser.U<TransactionRequested>(cr.Message.Value)!;
 
         var feat = BuildFeatures(requested); // map theo metadata.json
         var reverseMap = LoadReverseMap(scope.ServiceProvider.GetRequiredService<IConfiguration>());
